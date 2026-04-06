@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>ANKH V5 ACTIVE Dashboard</title>
+<style>
+  body { font-family: Arial; background: #1e1e1e; color: #f0f0f0; }
+  #top-right { position: fixed; top: 10px; right: 20px; font-size: 1rem; }
+  #ticker { position: fixed; bottom: 0; width: 100%; white-space: nowrap; overflow: hidden; background: #111; padding: 10px; }
+  #ticker span { display: inline-block; padding: 0 50px; animation: scroll 20s linear infinite; }
+  @keyframes scroll { 0% { transform: translateX(100%); } 100% { transform: translateX(-100%); } }
+  #search { margin: 20px; padding: 10px; width: 300px; font-size: 1rem; }
+  .module { border: 1px solid #444; padding: 15px; margin: 20px; border-radius: 8px; background: #2b2b2b; }
+</style>
+</head>
+<body>
+
+<div id="top-right"></div>
+
+<input id="search" type="text" placeholder="Enter ticker (e.g., AAPL)" />
+<button onclick="searchTicker()">Search</button>
+
+<div class="module" id="crude-module">
+  <h2>Crude Oil Prices</h2>
+  <div>WTI: <span id="wti-price">--</span></div>
+  <div>Brent: <span id="brent-price">--</span></div>
+</div>
+
+<div class="module" id="ticker-module">
+  <h2>Ticker Info</h2>
+  <div id="ticker-info">Search for a ticker to see details here.</div>
+</div>
+
+<div id="ticker">
+  <span id="scroll-ticker">Loading tickers...</span>
+</div>
+
+<script>
+// --- 1️⃣ TIME & DATE ---
+function updateTime() {
+  const now = new Date();
+  document.getElementById('top-right').textContent = now.toLocaleString();
+}
+setInterval(updateTime, 1000);
+updateTime();
+
+// --- 2️⃣ API KEYS ---
+const TWELVE_KEY = "528388fd472444618660d5286cd89e04";
+const ALPHA_KEY  = "WNLJBOUW9NKEVHYI";
+const FINNHUB_KEY = "cot4gfhr01qgmopn3va0cot4gfhr01qgmopn3vag";
+
+// --- 3️⃣ CRUDE OIL FETCH (Twelve Data) ---
+async function fetchCrude() {
+  try {
+    const wtiResp = await fetch(`https://api.twelvedata.com/price?symbol=WTI&apikey=${TWELVE_KEY}`);
+    const brentResp = await fetch(`https://api.twelvedata.com/price?symbol=BRENT&apikey=${TWELVE_KEY}`);
+    const wtiData = await wtiResp.json();
+    const brentData = await brentResp.json();
+    document.getElementById('wti-price').textContent = wtiData.price || "N/A";
+    document.getElementById('brent-price').textContent = brentData.price || "N/A";
+  } catch(err) {
+    console.error("Crude fetch error:", err);
+    document.getElementById('wti-price').textContent = "Error";
+    document.getElementById('brent-price').textContent = "Error";
+  }
+}
+fetchCrude();
+
+// --- 4️⃣ SEARCH TICKER ---
+async function searchTicker() {
+  const ticker = document.getElementById('search').value.toUpperCase();
+  if (!ticker) return alert("Enter a ticker!");
+
+  try {
+    // 4a. Get latest price from Twelve Data
+    const priceResp = await fetch(`https://api.twelvedata.com/price?symbol=${ticker}&apikey=${TWELVE_KEY}`);
+    const priceData = await priceResp.json();
+    const lastPrice = priceData.price || "N/A";
+
+    // 4b. Get analyst trends from FinnHub
+    const analystResp = await fetch(`https://finnhub.io/api/v1/stock/recommendation?symbol=${ticker}&token=${FINNHUB_KEY}`);
+    const analystData = await analystResp.json();
+    const latestAnalyst = analystData[0] ? 
+      `Buy: ${analystData[0].buy}, Hold: ${analystData[0].hold}, Sell: ${analystData[0].sell}` : 
+      "No updates";
+
+    // 4c. Optionally fetch previous close from Alpha Vantage if needed
+    const alphaResp = await fetch(`https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${ticker}&apikey=${ALPHA_KEY}`);
+    const alphaData = await alphaResp.json();
+    const prevClose = alphaData["Global Quote"] ? alphaData["Global Quote"]["08. previous close"] : "N/A";
+
+    document.getElementById('ticker-info').innerHTML = `
+      <strong>${ticker}</strong><br>
+      Last Price: $${lastPrice} <br>
+      Previous Close: $${prevClose} <br>
+      Analyst Trends: ${latestAnalyst}
+    `;
+
+  } catch(err) {
+    console.error("Ticker search error:", err);
+    document.getElementById('ticker-info').textContent = "Error fetching ticker data.";
+  }
+}
+
+// --- 5️⃣ SCROLLING TICKER ---
+const tickers = ['AAPL', 'MSFT', 'TSLA', 'GOOGL', 'AMZN', 'WTI', 'BRENT'];
+document.getElementById('scroll-ticker').textContent = tickers.join('  |  ');
+
+</script>
+</body>
+</html>
